@@ -26,6 +26,23 @@ editor_options:
 
 ::: 
 
+```{r add link to github repo}
+#| eval: true
+#| output: asis
+#| echo: false
+
+# print link to github repo if any
+if (file.exists("./.git/config")){
+  config <- readLines("./.git/config")
+  url <- grep("url",  config, value = TRUE)
+  url <- gsub("\\turl = |.git$", "", url)
+  if (nchar(url) > 1)
+  cat("\nSource code and acoustic data found at [", url, "](", url, ")", sep = "")
+  }
+
+```
+
+
 # Analysis flowchart {.unnumbered .unlisted}
 
 ```{mermaid}
@@ -116,8 +133,13 @@ seg_2_minseg <- function(seg) {
 ```{r}
 #| eval: true
 
+# where the original sound files are
 sound_file_path <- "./data/raw/sound_files/"
 
+# where you want to have the consolidated sound files and clips
+consolidate_path <- "./data/raw/sound_files/"
+
+# where to save the output data
 output_data_path <- "./data/raw"
 
 warbleR_options(wav.path = sound_file_path)
@@ -161,11 +183,11 @@ files
 ```{r}
 #| eval: false
 
-dir.create(file.path(sound_file_path, "consolidated_sound_files"))
+dir.create(file.path(consolidate_path, "consolidated_sound_files"))
 
 cns <- consolidate(
     path = sound_file_path,
-    dest.path = file.path(sound_file_path, "consolidated_sound_files"),
+    dest.path = file.path(consolidate_path, "consolidated_sound_files"),
     parallel = 1,
     file.ext = ".wav$|.flac$"
 )
@@ -182,12 +204,12 @@ cns <- consolidate(
 
 # convert flac to wav
 if (any(grepl("\\.flac$", files)))
-    warbleR::wav_2_flac(path = file.path(sound_file_path, "consolidated_sound_files"), reverse = TRUE)
+    warbleR::wav_2_flac(path = file.path(consolidate_path, "consolidated_sound_files"), reverse = TRUE)
 
-fix_wavs(samp.rate = 200, bit.depth = 16, path = file.path(sound_file_path, "consolidated_sound_files"))
+fix_wavs(samp.rate = 200, bit.depth = 16, path = file.path(consolidate_path, "consolidated_sound_files"))
 
 warbleR_options(
-  wav.path = file.path(sound_file_path, "consolidated_sound_files", "converted_sound_files")
+  wav.path = file.path(consolidate_path, "consolidated_sound_files", "converted_sound_files")
 )
 
 ```
@@ -200,16 +222,16 @@ Update sound file directory afterwards
 #| eval: false
 
 # check files
-ohun::feature_acoustic_data(path = .Options$warbleR$path)
+feature_acoustic_data(path = .Options$warbleR$path)
 
 # segment duration 2 min
 clip_duration <- 2 * 60
     
-ssf <- ohun::split_acoustic_data(sgmt.dur = clip_duration, cores = 1, path = .Options$warbleR$path)
+ssf <- split_acoustic_data(sgmt.dur = clip_duration, cores = 1, path = .Options$warbleR$path)
 
-write.csv(ssf, file.path(sound_file_path, "consolidated_sound_files", "converted_sound_files", "5min_clip_info.csv"), row.names = FALSE)
+write.csv(ssf, file.path(consolidate_path, "consolidated_sound_files", "converted_sound_files", "5min_clip_info.csv"), row.names = FALSE)
 
-clips_path <- file.path(sound_file_path, "consolidated_sound_files", "converted_sound_files", "clips")
+clips_path <- file.path(consolidate_path, "consolidated_sound_files", "converted_sound_files", "clips")
 
 warbleR_options(
   wav.path = clips_path
@@ -222,7 +244,7 @@ warbleR_options(
 #| eval: true
 #| echo: false
 
-clips_path <- file.path(sound_file_path, "consolidated_sound_files", "converted_sound_files", "clips")
+clips_path <- file.path(consolidate_path, "consolidated_sound_files", "converted_sound_files", "clips")
 
 warbleR_options(
   wav.path = clips_path
@@ -293,7 +315,7 @@ sapply(spectral_features, function(x)
 # remove NAs
 detection <- detection[complete.cases(spectral_features), ]
 
-spectral_features <- spectral_features[!complete.cases(spectral_features), ]
+spectral_features <- spectral_features[complete.cases(spectral_features), ]
 
 # save acoustic parameters just in case
 write.csv(
@@ -458,7 +480,7 @@ detection <- readRDS(file.path(output_data_path, "detection.RDS"))
 # measure spectrographic parameters
 spectral_features <- spectro_analysis(
     detection,
-    bp = c(35, 85),
+    bp = c(20, 30),
     fast = TRUE,
     ovlp = 70,
     parallel = 1
@@ -480,6 +502,14 @@ write.csv(
     row.names = FALSE
 )
 
+# resave detections
+saveRDS(
+    detection,
+    file.path(
+        output_data_path,
+        "detection.RDS"
+    )
+)
 ```
 
 #### Predict based on pre-defined RF model
@@ -498,6 +528,8 @@ download.file(url = "https://figshare.com/ndownloader/files/57261959", destfile 
 
 
 :::
+
+* _(from here the code is based on the 55 kHz detection procedure)_
 
 Apply the model to the measured acoustic parameters
 ```{r run random forest}
@@ -536,18 +568,14 @@ saveRDS(
 #| eval: true
 #| echo: true
 
+
 # read detections
-filtered_detection <- readRDS(
-    file.path(
-        output_data_path,
-        "random_forest_filtered_detection.RDS"
-    )
-)
+filtered_detection <- readRDS(file.path(output_data_path, "random_forest_filtered_detection.RDS"))
 
 # read clip information
 clip_info <- read.csv(
     file.path(
-        sound_file_path,
+        consolidate_path,
         "consolidated_sound_files",
         "converted_sound_files",
         "5min_clip_info.csv"
@@ -572,9 +600,9 @@ count_min <- acoustic_activity(
     X = reass_detec,
     time.window = 60,
     hop.size = 60,
-    path =  file.path(sound_file_path, "/consolidated_sound_files/"),
+    path =  file.path(consolidate_path, "/consolidated_sound_files/"),
     files = list.files(
-        path = file.path(sound_file_path, "/consolidated_sound_files/"),
+        path = file.path(consolidate_path, "/consolidated_sound_files/"),
         pattern = "\\.wav$"
     )
 )
@@ -582,14 +610,17 @@ count_min <- acoustic_activity(
 # convert to minute rate
 count_min$minute <- count_min$start / 60 + 1
 
-wide_count_min <- reshape(count_min[, c("counts", "minute", "sound.files")], direction = "wide", idvar = "sound.files", timevar = "minute")
+wide_count_min <- reshape(count_min[, c("counts", "minute", "sound.files")],
+                          direction = "wide",
+                          idvar = "sound.files",
+                          timevar = "minute")
 
 names(wide_count_min) <- c("sound.files", paste("min", 1:max(count_min$minute)))
 
-wide_count_min$total <- apply(wide_count_min[,-1], 1, sum, na.rm = TRUE)
+wide_count_min$total <- apply(wide_count_min[, -1], 1, sum, na.rm = TRUE)
 
-# print html table
-print(wide_count_min)
+# print results
+wide_count_min
 ```
 
 
@@ -607,7 +638,7 @@ count_high_min <- acoustic_activity(
     X = reass_detec,
     time.window = 60,
     hop.size = 1,
-    path = file.path(sound_file_path, "/consolidated_sound_files/")
+    path = file.path(consolidate_path, "/consolidated_sound_files/")
 )
 
 # rate per minute
@@ -624,7 +655,16 @@ highes_min$`start (min:s)` <- seg_2_minseg(highes_min$start)
 highes_min$`end (min:s)` <- seg_2_minseg(highes_min$end)
 
 # order columns
-highes_min <- highes_min[, c("sound.files", "start", "end",  "start (min:s)", "end (min:s)", "duration", "counts", "rate")]
+highes_min <- highes_min[, c(
+    "sound.files",
+    "start",
+    "end",
+    "start (min:s)",
+    "end (min:s)",
+    "duration",
+    "counts",
+    "rate"
+)]
 
 highes_min
 ```
@@ -632,45 +672,54 @@ highes_min
 
 ### Counts before and after a given time
 
-- For the sake of the example, lest's say we have a mate entry at different times for each sound file. Lets simulate that data:
+- For the sake of the example, lest's say we introduced a mate into the cage in the middle of the experiment. The following data simulates the mate entry time for each sound file:
 ```{r}
+#| eval: true
+#| echo: true
 
-mate_entry <- data.frame(
-    sound.files = unique(highes_min$sound.files),
-    time = c(150, 300, 450)
-)
+# simulated mate entry times
+mate_entry <- data.frame(sound.files = unique(highes_min$sound.files),
+                         time = c(56, 64, 68))
 
+mate_entry
 ```
 
-
+- We can now count the number of USVs before and after the mate entry time
 ```{r}
-#| eval: false
-#| echo: false
-
+#| eval: true
+#| echo: true
 
 # count before and after
-out <- lapply(mate_entry$SOUND_FILES, function(x){
-        
+out <- lapply(mate_entry$sound.files, function(x) {
     # get the sound file
     sf <- reass_detec[reass_detec$sound.files == x, ]
     
     sf$mid.point <- (sf$end + sf$start) / 2
     
     # get the time of the mate entry
-    t <- mate_entry$seconds[mate_entry$SOUND_FILES == x]
-
+    t <- mate_entry$time[mate_entry$sound.files == x]
+    
     # get the calls before and after the mate entry
     before <- sum(sf$mid.point < t)
     after <- sum(sf$mid.point >= t)
     min.before <- sum(sf$mid.point < t & sf$mid.point >= t - 60)
     min.after <- sum(sf$mid.point >= t & sf$mid.point < t + 60)
     
-    return(data.frame(sound.files = x, mate.entry = t, count.before = before, count.after = after, count.min.before = min.before, count.min.after = min.after))
+    return(
+        data.frame(
+            sound.files = x,
+            mate.entry = t,
+            count.before = before,
+            count.after = after,
+            count.min.before = min.before,
+            count.min.after = min.after
+        )
+    )
 })
-    
+
 counts <- do.call(rbind, out)
 
-print(counts)
+counts
 
 ```
 
