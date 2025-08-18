@@ -22,7 +22,7 @@ editor_options:
 
 # Objetive {.unnumbered .unlisted}
 
-Example code on how to use _ohun_ to automatically detect rat ultrasonic vocalizations in the 55 kHz range
+- Example code on how to use _ohun_ to automatically detect rat ultrasonic vocalizations in the 55 kHz range
 
 ::: 
 
@@ -30,16 +30,17 @@ Example code on how to use _ohun_ to automatically detect rat ultrasonic vocaliz
 
 ```{mermaid}
 
-flowchart
-  A[Read data] --> B(Format data) 
-  B --> C(Graphs)
-  C --> D(Statistical analysis)
-  D --> E(Model summary) 
+flowchart LR
+  A(Format sound files) --> B(Detect sounds) 
+  B --> C("Measure acoustic features")
+  C --> D(Mitigate false positives)
+  D --> E(Summarize USVs counts) 
 
-style A fill:#44015466
-style B fill:#3E4A894D
-style C fill:#26828E4D
-style D fill:#6DCD594D
+style A fill:#382A5433
+style B fill:#395D9C33
+style C fill:#3497A933
+style D fill:#60CEAC33
+style E fill:#DEF5E533
 
 ```
 
@@ -53,16 +54,8 @@ style D fill:#6DCD594D
 ## add 'developer/' to packages to install from github
 x <- c(
     "maRce10/warbleR",
-    "Rraven",
-    "parallel",
-    "viridis",
-    "readxl",
     "ranger",
-    "kableExtra",
-    "DT",
-    "maRce10/ohun",
-    "ggplot2",
-    "readxl"
+    "maRce10/ohun"
 )
 
 sketchy::load_packages(x)
@@ -72,6 +65,21 @@ sketchy::load_packages(x)
 ```{r functions and global parameters}
 #| eval: true
 #| echo: false
+#| message: false
+#| warning: false
+
+## add 'developer/' to packages to install from github
+x <- c(
+    "maRce10/warbleR",
+    "Rraven",
+    "parallel",
+    "ranger",
+    "kableExtra",
+    "DT",
+    "maRce10/ohun"
+)
+
+sketchy::load_packages(x)
 
 opts_knit$set(root.dir = "..")
 
@@ -84,7 +92,21 @@ print <- function(x) {
     scroll_box(kb, width = "100%")
 }
 
+source("~/Dropbox/R_package_testing/warbleR/R/acoustic_activity.R")
 ```
+
+# Custom function
+```{r}
+
+# function to convert seconds to min:s
+seg_2_minseg <- function(seg) {
+  minutos <- seg %/% 60
+  segundos <- seg %% 60
+  sprintf("%d:%02d", minutos, segundos)  # 2 digits
+}
+
+```
+
 
 # Prepare sound files
 
@@ -102,6 +124,35 @@ warbleR_options(wav.path = sound_file_path)
 
 ```
 
+These are the sound files used in this example:
+```{r}
+#| eval: false
+#| echo: true
+
+files <- list.files(
+    path = sound_file_path,
+    full.names = TRUE,
+    recursive = TRUE,
+    pattern = ".wav$|.wac$|.mp3$|.flac$"
+)
+
+```
+
+```{r}
+#| eval: true
+#| echo: false
+
+files <- list.files(
+    path = sound_file_path,
+    full.names = TRUE,
+    recursive = TRUE,
+    pattern = ".wav$|.flac$"
+)
+
+files <- grep("consolidated", files, value = TRUE, invert = TRUE)
+
+files
+```
 
 
 ## Consolidate sound files
@@ -116,7 +167,7 @@ cns <- consolidate(
     path = sound_file_path,
     dest.path = file.path(sound_file_path, "consolidated_sound_files"),
     parallel = 1,
-    file.ext = ".wav$|.wac$|.mp3$|.flac$"
+    file.ext = ".wav$|.flac$"
 )
 
 ```
@@ -129,7 +180,9 @@ cns <- consolidate(
 ```{r}
 #| eval: false
 
-warbleR::wav_2_flac(path = file.path(sound_file_path, "consolidated_sound_files"), reverse = TRUE)
+# convert flac to wav
+if (any(grepl("\\.flac$", files)))
+    warbleR::wav_2_flac(path = file.path(sound_file_path, "consolidated_sound_files"), reverse = TRUE)
 
 fix_wavs(samp.rate = 200, bit.depth = 16, path = file.path(sound_file_path, "consolidated_sound_files"))
 
@@ -164,9 +217,27 @@ warbleR_options(
 
 ```
 
+
+```{r}
+#| eval: true
+#| echo: false
+
+clips_path <- file.path(sound_file_path, "consolidated_sound_files", "converted_sound_files", "clips")
+
+warbleR_options(
+  wav.path = clips_path
+)
+```
+
 # Automatic detection
 
-## Energy detector 
+
+
+::: {.panel-tabset}
+
+## 55 kHz with bedding
+
+### Energy detector 
 
 - Uses optimized detection parameters
 - Saves results in a RDS file
@@ -182,7 +253,7 @@ detection <- energy_detector(
     hold.time = 3,
     min.duration = 1,
     max.duration = 200,
-    cores = 5
+    cores = 1
 )
 
 saveRDS(
@@ -195,48 +266,257 @@ saveRDS(
 
 ```
 
-## Random forest classification
+### Random forest classification
 
-### Measure acoustic parameters
+#### Measure acoustic features
 
-```{r measure acoustic parameters}
+- Save features at the end of the analysis
+```{r measure acoustic features}
 #| eval: false
+#| echo: true
 
-detection <- readRDS(file.path(
-        output_data_path,
-        "detection.RDS"
-    ))
+detection <- readRDS(file.path(output_data_path, "detection.RDS"))
 
 # measure spectrographic parameters
-spectral_parameters <- spectro_analysis(detection, bp = c(35, 85), fast = TRUE, ovlp = 70, parallel = 22)
-```
+spectral_features <- spectro_analysis(
+    detection,
+    bp = c(35, 85),
+    fast = TRUE,
+    ovlp = 70,
+    parallel = 1
+)
 
-### Predict based on pre-defined RF model
-
-Output is saved
-```{r run random forest}
-#| eval: false
-
-# read model
-rf_model <- readRDS("./data/processed/random_forest_55kHz_with_bedding.RDS")
-
-sapply(spectral_parameters, function(x)
+# check if any NA
+sapply(spectral_features, function(x)
     sum(is.na(x)))
 
-detection <- detection[!is.na(spectral_parameters$meandom), ]
+# remove NAs
+detection <- detection[complete.cases(spectral_features), ]
 
-spectral_parameters <- spectral_parameters[!is.na(spectral_parameters$meandom), ]
+spectral_features <- spectral_features[!complete.cases(spectral_features), ]
 
+# save acoustic parameters just in case
 write.csv(
-    spectral_parameters,
-    file.path(output_data_path, "spectral_parameters.csv"),
+    spectral_features,
+    file.path(output_data_path, "spectral_features.csv"),
     row.names = FALSE
 )
 
-# apply model
-detection$class <- predict(object = rf_model, data = spectral_parameters)$predictions
+```
 
-# remover los sonidos clasificados como ruido de fondo
+#### Predict based on pre-defined RF model
+
+- Download model from figshare
+```{r}
+#| eval: false
+#| echo: true
+
+model_rds <- tempfile()
+
+# this downloads the 55 kHz USV with bedding detection model
+download.file(url = "https://figshare.com/ndownloader/files/57261971", destfile = model_rds)
+
+```
+
+```{r}
+#| eval: true
+#| echo: false
+
+detection <- readRDS(file.path(output_data_path, "detection.RDS"))
+
+model_rds <- "./data/processed/random_forest_55kHz_with_bedding.RDS"
+
+```
+
+
+## 55 kHz without bedding
+
+### Energy detector 
+
+- Uses optimized detection parameters
+- Saves results in a RDS file
+```{r}
+#| eval: false
+
+detection <- energy_detector(
+    path = .Options$warbleR$path,
+    thinning = 0.5,
+    bp = c(35, 90),
+    smooth = 5,
+    threshold = 1,
+    hold.time = 5,
+    min.duration = 1,
+    max.duration = 150,
+    cores = 1
+)
+
+saveRDS(
+    detection,
+    file.path(
+        output_data_path,
+        "detection.RDS"
+    )
+)
+
+```
+
+### Random forest classification
+
+#### Measure acoustic features
+
+- Save features at the end of the analysis
+```{r measure acoustic features 55 kHz no bedding}
+#| eval: false
+#| echo: true
+
+detection <- readRDS(file.path(output_data_path, "detection.RDS"))
+
+# measure spectrographic parameters
+spectral_features <- spectro_analysis(
+    detection,
+    bp = c(35, 85),
+    fast = TRUE,
+    ovlp = 70,
+    parallel = 1
+)
+
+# check if any NA
+sapply(spectral_features, function(x)
+    sum(is.na(x)))
+
+# remove NAs
+detection <- detection[complete.cases(spectral_features), ]
+
+spectral_features <- spectral_features[!complete.cases(spectral_features), ]
+
+# save acoustic parameters just in case
+write.csv(
+    spectral_features,
+    file.path(output_data_path, "spectral_features.csv"),
+    row.names = FALSE
+)
+
+```
+
+#### Predict based on pre-defined RF model
+
+- Download model from figshare
+```{r}
+#| eval: false
+#| echo: true
+
+model_rds <- tempfile()
+
+# this downloads the 55 kHz USV without bedding detection model
+download.file(url = "https://figshare.com/ndownloader/files/57261968", destfile = model_rds)
+
+```
+
+
+## 22 kHz without bedding
+
+### Energy detector 
+
+- Uses optimized detection parameters
+- Saves results in a RDS file
+```{r}
+#| eval: false
+
+detection <- energy_detector(
+    path = .Options$warbleR$path,
+    thinning = 0.5,
+    bp = c(20, 30),
+    smooth = 17,
+    threshold = 2,
+    hold.time = 25,
+    min.duration = 2,
+    max.duration = 300,
+    cores = 1
+)
+
+saveRDS(
+    detection,
+    file.path(
+        output_data_path,
+        "detection.RDS"
+    )
+)
+
+```
+
+### Random forest classification
+
+#### Measure acoustic features
+
+- Save features at the end of the analysis
+```{r measure acoustic features 22 kHz}
+#| eval: false
+#| echo: true
+
+detection <- readRDS(file.path(output_data_path, "detection.RDS"))
+
+# measure spectrographic parameters
+spectral_features <- spectro_analysis(
+    detection,
+    bp = c(35, 85),
+    fast = TRUE,
+    ovlp = 70,
+    parallel = 1
+)
+
+# check if any NA
+sapply(spectral_features, function(x)
+    sum(is.na(x)))
+
+# remove NAs
+detection <- detection[complete.cases(spectral_features), ]
+
+spectral_features <- spectral_features[!complete.cases(spectral_features), ]
+
+# save acoustic parameters just in case
+write.csv(
+    spectral_features,
+    file.path(output_data_path, "spectral_features.csv"),
+    row.names = FALSE
+)
+
+```
+
+#### Predict based on pre-defined RF model
+
+- Download model from figshare
+```{r}
+#| eval: false
+#| echo: true
+
+model_rds <- tempfile()
+
+# this downloads the 22 kHz USV without bedding detection model
+download.file(url = "https://figshare.com/ndownloader/files/57261959", destfile = model_rds)
+
+```
+
+
+:::
+
+Apply the model to the measured acoustic parameters
+```{r run random forest}
+#| eval: true
+#| echo: true
+
+# read model
+rf_model <- readRDS(model_rds)
+
+# read acoustic features
+spectral_features <- read.csv(
+    file.path(output_data_path, "spectral_features.csv"),
+    stringsAsFactors = FALSE
+)
+
+# apply model
+detection$class <- predict(object = rf_model, data = spectral_features)$predictions
+
+# keep only true positives
 filtered_detection <- detection[detection$class == "true.positive", ]
 
 saveRDS(
@@ -253,11 +533,11 @@ saveRDS(
 
 ## Reassemble detections to original sound files
 ```{r}
-#| eval: false
+#| eval: true
 #| echo: true
 
 # read detections
-filtered_detection_55 <- readRDS(
+filtered_detection <- readRDS(
     file.path(
         output_data_path,
         "random_forest_filtered_detection.RDS"
@@ -275,15 +555,15 @@ clip_info <- read.csv(
 )
 
 # reassemble to original (long) sound files
-reass_detec <- reassemble_detection(detection = filtered_detection_55, Y = clip_info, pb = FALSE)
+reass_detec <- reassemble_detection(detection = filtered_detection, Y = clip_info, pb = FALSE)
 
-reass_detec$selec <- 1:nrow(reass_detec)
 ```
 
 ## USV counts per minute
 
+- To get counts for each minute the code uses `hop.size = 60`
 ```{r}
-#| eval: false
+#| eval: true
 #| echo: true
 
 # counts per minute
@@ -306,76 +586,71 @@ wide_count_min <- reshape(count_min[, c("counts", "minute", "sound.files")], dir
 
 names(wide_count_min) <- c("sound.files", paste("min", 1:max(count_min$minute)))
 
-write.csv( file.path(
-        output_data_path,
-          "counts_per_minute_55kHz_with_bedding.csv"),
-          row.names = FALSE)
+wide_count_min$total <- apply(wide_count_min[,-1], 1, sum, na.rm = TRUE)
 
 # print html table
 print(wide_count_min)
 ```
 
-```{r}
-#| eval: true
-#| echo: false
-
-count_min <- read.csv(file.path(output_data_path, "counts_per_minute_55kHz_with_bedding.csv"))
-
-# # convert to minute rate
-# count_min$minute <- count_min$start / 60 + 1
- 
-wide_count_min <- reshape(count_min[, c("counts", "minute", "sound.files")], direction = "wide", idvar = "sound.files", timevar = "minute")
-
-names(wide_count_min) <- c("sound.files", paste("min", 1:max(count_min$minute)))
-
-wide_count_min$total <- apply(wide_count_min[,-1], 1, sum, na.rm = TRUE)
-
-print(wide_count_min)
-
-
-
-```
 
 ### Minute with highest USV count
+
+- Finds the minute with the highest USV count per sound file 
+- The function scans across the entire sound file counting sounds every 1 s (`hop.size = 1`)
+
 ```{r}
-#| eval: false
+#| eval: true
 #| echo: true
 
-
-vr <- acoustic_activity(
+# counting
+count_high_min <- acoustic_activity(
     X = reass_detec,
     time.window = 60,
     hop.size = 1,
     path = file.path(sound_file_path, "/consolidated_sound_files/")
 )
 
-
 # rate per minute
-count_min$rate <- count_min$rate * 60
+count_high_min$rate <- count_high_min$rate * 60
 
 # get highest per sound file
-sub_count_min <- count_min[count_min$duration == 60, ]
+sub_count_high_min <- count_high_min[count_high_min$duration == 60, ]
 
 # get the row with the highest rate per sound file
-highes_min <- do.call(rbind, lapply(split(sub_count_min, sub_count_min$sound.files), function(x)
+highes_min <- do.call(rbind, lapply(split(sub_count_high_min, sub_count_high_min$sound.files), function(x)
     x[which.max(x$rate), ]))
 
-print(highes_min)
+highes_min$`start (min:s)` <- seg_2_minseg(highes_min$start)
+highes_min$`end (min:s)` <- seg_2_minseg(highes_min$end)
+
+# order columns
+highes_min <- highes_min[, c("sound.files", "start", "end",  "start (min:s)", "end (min:s)", "duration", "counts", "rate")]
+
+highes_min
 ```
 
 
 ### Counts before and after a given time
+
+- For the sake of the example, lest's say we have a mate entry at different times for each sound file. Lets simulate that data:
+```{r}
+
+mate_entry <- data.frame(
+    sound.files = unique(highes_min$sound.files),
+    time = c(150, 300, 450)
+)
+
+```
+
+
 ```{r}
 #| eval: false
 #| echo: false
 
-mate_entry <- read_xlsx("/media/m/Backup Plus/CUIDO MATERNO/VOCALIZACIONES M2 isoc y ca/consolidated_sound_files/Tanda ISOC.xlsx")
-
-mate_entry <- mate_entry[!is.na(mate_entry$seconds), ]
 
 # count before and after
 out <- lapply(mate_entry$SOUND_FILES, function(x){
-    
+        
     # get the sound file
     sf <- reass_detec[reass_detec$sound.files == x, ]
     
@@ -394,8 +669,6 @@ out <- lapply(mate_entry$SOUND_FILES, function(x){
 })
     
 counts <- do.call(rbind, out)
-
-
 
 print(counts)
 
