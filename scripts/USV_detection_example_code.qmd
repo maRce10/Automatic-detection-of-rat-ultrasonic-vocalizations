@@ -22,7 +22,7 @@ editor_options:
 
 # Objetive {.unnumbered .unlisted}
 
-- Example code on how to use _ohun_ to automatically detect rat ultrasonic vocalizations in the 55 kHz range
+- Example code on how to use _ohun_ to automatically detect rat ultrasonic vocalizations 
 
 ::: 
 
@@ -48,10 +48,10 @@ if (file.exists("./.git/config")){
 ```{mermaid}
 
 flowchart LR
-  A(Format sound files) --> B(Detect sounds) 
-  B --> C("Measure acoustic features")
-  C --> D(Mitigate false positives)
-  D --> E(Summarize USVs counts) 
+  A("Format sound</br>files") --> B("Detect</br>sounds") 
+  B --> C("Measure</br>acoustic features")
+  C --> D("Mitigate</br>false positives")
+  D --> E("Summarize</br>USVs counts") 
 
 style A fill:#382A5433
 style B fill:#395D9C33
@@ -252,8 +252,6 @@ warbleR_options(
 ```
 
 # Automatic detection
-
-
 
 ::: {.panel-tabset}
 
@@ -685,6 +683,7 @@ mate_entry
 ```
 
 - We can now count the number of USVs before and after the mate entry time
+- The code also counts the number of USVs in the minute right before and right after the mate entry
 ```{r}
 #| eval: true
 #| echo: true
