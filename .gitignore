@@ -1,0 +1,8 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+/data/raw/sound_files/consolidated_sound_files
+data/processed/random_forest_22kHz_no_bedding.RDS
+data/processed/random_forest_55kHz_no_bedding.RDS
+data/processed/random_forest_55kHz_with_bedding.RDS

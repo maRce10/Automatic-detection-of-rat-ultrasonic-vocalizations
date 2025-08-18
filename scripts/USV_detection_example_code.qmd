@@ -1,0 +1,421 @@
+---
+title: Detecting rat ultrasonic vocalizations
+subtitle: Example code
+author: <a href="https://marce10.github.io/">Marcelo Araya-Salas, PhD</a>
+date: "`r Sys.Date()`"
+toc: true
+toc-depth: 2
+toc-location: left
+number-sections: true
+highlight-style: pygments
+format:
+  html:
+    df-print: kable
+    code-fold: show
+    code-tools: true
+    css: qmd.css
+editor_options: 
+  chunk_output_type: console
+---
+
+::: {.alert .alert-success}
+
+# Objetive {.unnumbered .unlisted}
+
+Example code on how to use _ohun_ to automatically detect rat ultrasonic vocalizations in the 55 kHz range
+
+::: 
+
+# Analysis flowchart {.unnumbered .unlisted}
+
+```{mermaid}
+
+flowchart
+  A[Read data] --> B(Format data) 
+  B --> C(Graphs)
+  C --> D(Statistical analysis)
+  D --> E(Model summary) 
+
+style A fill:#44015466
+style B fill:#3E4A894D
+style C fill:#26828E4D
+style D fill:#6DCD594D
+
+```
+
+# Load packages {.unnumbered .unlisted}
+
+```{r packages}
+#| message: false
+#| warning: false
+#| echo: true
+
+## add 'developer/' to packages to install from github
+x <- c(
+    "maRce10/warbleR",
+    "Rraven",
+    "parallel",
+    "viridis",
+    "readxl",
+    "ranger",
+    "kableExtra",
+    "DT",
+    "maRce10/ohun",
+    "ggplot2",
+    "readxl"
+)
+
+sketchy::load_packages(x)
+
+```
+
+```{r functions and global parameters}
+#| eval: true
+#| echo: false
+
+opts_knit$set(root.dir = "..")
+
+options(knitr.kable.NA = '')
+
+print <- function(x) {
+    kb <- kable(x, row.names = FALSE, digits = 4, "html")
+    kb <- kable_styling(kb,
+                        bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+    scroll_box(kb, width = "100%")
+}
+
+```
+
+# Prepare sound files
+
+## Set directory with original sound files
+
+- Modify with your own directory paths
+```{r}
+#| eval: true
+
+sound_file_path <- "./data/raw/sound_files/"
+
+output_data_path <- "./data/raw"
+
+warbleR_options(wav.path = sound_file_path)
+
+```
+
+
+
+## Consolidate sound files
+
+- Put all original sound files in a single folder
+```{r}
+#| eval: false
+
+dir.create(file.path(sound_file_path, "consolidated_sound_files"))
+
+cns <- consolidate(
+    path = sound_file_path,
+    dest.path = file.path(sound_file_path, "consolidated_sound_files"),
+    parallel = 1,
+    file.ext = ".wav$|.wac$|.mp3$|.flac$"
+)
+
+```
+
+## Homogenize sound file format
+
+- Convert flac to wav (if needed)
+- Downsample files
+- Update sound file directory afterwards
+```{r}
+#| eval: false
+
+warbleR::wav_2_flac(path = file.path(sound_file_path, "consolidated_sound_files"), reverse = TRUE)
+
+fix_wavs(samp.rate = 200, bit.depth = 16, path = file.path(sound_file_path, "consolidated_sound_files"))
+
+warbleR_options(
+  wav.path = file.path(sound_file_path, "consolidated_sound_files", "converted_sound_files")
+)
+
+```
+
+## Split sound files into 5 min clips
+
+Update sound file directory afterwards
+
+```{r}
+#| eval: false
+
+# check files
+ohun::feature_acoustic_data(path = .Options$warbleR$path)
+
+# segment duration 2 min
+clip_duration <- 2 * 60
+    
+ssf <- ohun::split_acoustic_data(sgmt.dur = clip_duration, cores = 1, path = .Options$warbleR$path)
+
+write.csv(ssf, file.path(sound_file_path, "consolidated_sound_files", "converted_sound_files", "5min_clip_info.csv"), row.names = FALSE)
+
+clips_path <- file.path(sound_file_path, "consolidated_sound_files", "converted_sound_files", "clips")
+
+warbleR_options(
+  wav.path = clips_path
+)
+
+```
+
+# Automatic detection
+
+## Energy detector 
+
+- Uses optimized detection parameters
+- Saves results in a RDS file
+```{r}
+#| eval: false
+
+detection <- energy_detector(
+    path = .Options$warbleR$path,
+    thinning = 0.5,
+    bp = c(35, 90),
+    smooth = 1,
+    threshold = 2.5,
+    hold.time = 3,
+    min.duration = 1,
+    max.duration = 200,
+    cores = 5
+)
+
+saveRDS(
+    detection,
+    file.path(
+        output_data_path,
+        "detection.RDS"
+    )
+)
+
+```
+
+## Random forest classification
+
+### Measure acoustic parameters
+
+```{r measure acoustic parameters}
+#| eval: false
+
+detection <- readRDS(file.path(
+        output_data_path,
+        "detection.RDS"
+    ))
+
+# measure spectrographic parameters
+spectral_parameters <- spectro_analysis(detection, bp = c(35, 85), fast = TRUE, ovlp = 70, parallel = 22)
+```
+
+### Predict based on pre-defined RF model
+
+Output is saved
+```{r run random forest}
+#| eval: false
+
+# read model
+rf_model <- readRDS("./data/processed/random_forest_55kHz_with_bedding.RDS")
+
+sapply(spectral_parameters, function(x)
+    sum(is.na(x)))
+
+detection <- detection[!is.na(spectral_parameters$meandom), ]
+
+spectral_parameters <- spectral_parameters[!is.na(spectral_parameters$meandom), ]
+
+write.csv(
+    spectral_parameters,
+    file.path(output_data_path, "spectral_parameters.csv"),
+    row.names = FALSE
+)
+
+# apply model
+detection$class <- predict(object = rf_model, data = spectral_parameters)$predictions
+
+# remover los sonidos clasificados como ruido de fondo
+filtered_detection <- detection[detection$class == "true.positive", ]
+
+saveRDS(
+    filtered_detection,
+    file.path(
+        output_data_path,
+        "random_forest_filtered_detection.RDS"
+    )
+)
+
+```
+
+# Summarized
+
+## Reassemble detections to original sound files
+```{r}
+#| eval: false
+#| echo: true
+
+# read detections
+filtered_detection_55 <- readRDS(
+    file.path(
+        output_data_path,
+        "random_forest_filtered_detection.RDS"
+    )
+)
+
+# read clip information
+clip_info <- read.csv(
+    file.path(
+        sound_file_path,
+        "consolidated_sound_files",
+        "converted_sound_files",
+        "5min_clip_info.csv"
+    )
+)
+
+# reassemble to original (long) sound files
+reass_detec <- reassemble_detection(detection = filtered_detection_55, Y = clip_info, pb = FALSE)
+
+reass_detec$selec <- 1:nrow(reass_detec)
+```
+
+## USV counts per minute
+
+```{r}
+#| eval: false
+#| echo: true
+
+# counts per minute
+## include files so it includes those with no detections
+count_min <- acoustic_activity(
+    X = reass_detec,
+    time.window = 60,
+    hop.size = 60,
+    path =  file.path(sound_file_path, "/consolidated_sound_files/"),
+    files = list.files(
+        path = file.path(sound_file_path, "/consolidated_sound_files/"),
+        pattern = "\\.wav$"
+    )
+)
+
+# convert to minute rate
+count_min$minute <- count_min$start / 60 + 1
+
+wide_count_min <- reshape(count_min[, c("counts", "minute", "sound.files")], direction = "wide", idvar = "sound.files", timevar = "minute")
+
+names(wide_count_min) <- c("sound.files", paste("min", 1:max(count_min$minute)))
+
+write.csv( file.path(
+        output_data_path,
+          "counts_per_minute_55kHz_with_bedding.csv"),
+          row.names = FALSE)
+
+# print html table
+print(wide_count_min)
+```
+
+```{r}
+#| eval: true
+#| echo: false
+
+count_min <- read.csv(file.path(output_data_path, "counts_per_minute_55kHz_with_bedding.csv"))
+
+# # convert to minute rate
+# count_min$minute <- count_min$start / 60 + 1
+ 
+wide_count_min <- reshape(count_min[, c("counts", "minute", "sound.files")], direction = "wide", idvar = "sound.files", timevar = "minute")
+
+names(wide_count_min) <- c("sound.files", paste("min", 1:max(count_min$minute)))
+
+wide_count_min$total <- apply(wide_count_min[,-1], 1, sum, na.rm = TRUE)
+
+print(wide_count_min)
+
+
+
+```
+
+### Minute with highest USV count
+```{r}
+#| eval: false
+#| echo: true
+
+
+vr <- acoustic_activity(
+    X = reass_detec,
+    time.window = 60,
+    hop.size = 1,
+    path = file.path(sound_file_path, "/consolidated_sound_files/")
+)
+
+
+# rate per minute
+count_min$rate <- count_min$rate * 60
+
+# get highest per sound file
+sub_count_min <- count_min[count_min$duration == 60, ]
+
+# get the row with the highest rate per sound file
+highes_min <- do.call(rbind, lapply(split(sub_count_min, sub_count_min$sound.files), function(x)
+    x[which.max(x$rate), ]))
+
+print(highes_min)
+```
+
+
+### Counts before and after a given time
+```{r}
+#| eval: false
+#| echo: false
+
+mate_entry <- read_xlsx("/media/m/Backup Plus/CUIDO MATERNO/VOCALIZACIONES M2 isoc y ca/consolidated_sound_files/Tanda ISOC.xlsx")
+
+mate_entry <- mate_entry[!is.na(mate_entry$seconds), ]
+
+# count before and after
+out <- lapply(mate_entry$SOUND_FILES, function(x){
+    
+    # get the sound file
+    sf <- reass_detec[reass_detec$sound.files == x, ]
+    
+    sf$mid.point <- (sf$end + sf$start) / 2
+    
+    # get the time of the mate entry
+    t <- mate_entry$seconds[mate_entry$SOUND_FILES == x]
+
+    # get the calls before and after the mate entry
+    before <- sum(sf$mid.point < t)
+    after <- sum(sf$mid.point >= t)
+    min.before <- sum(sf$mid.point < t & sf$mid.point >= t - 60)
+    min.after <- sum(sf$mid.point >= t & sf$mid.point < t + 60)
+    
+    return(data.frame(sound.files = x, mate.entry = t, count.before = before, count.after = after, count.min.before = min.before, count.min.after = min.after))
+})
+    
+counts <- do.call(rbind, out)
+
+
+
+print(counts)
+
+```
+
+---
+
+# Session information {.unnumbered .unlisted}
+
+<details>
+  <summary>Click to see</summary>
+```{r session info}
+#| echo: false
+
+# if devtools is installed use devtools::session_info()
+if (requireNamespace("devtools", quietly = TRUE)) {
+  devtools::session_info()
+} else {
+  sessionInfo()
+}
+
+```
+</details>
