@@ -15,7 +15,7 @@ spectrographic features.
 This script details the entire process of analysis, from sound file
 formatting to summarizing results:
 
-[https://rpubs.com/marcelo-araya-salas/detecting_rat_suvs](https://rstudio-pubs-static.s3.amazonaws.com/1336956_9a5768ca4c674330a149b1c4d5448eb0.html)
+[https://rpubs.com/marcelo-araya-salas/detecting_rat_suvs](https://rstudio-pubs-static.s3.amazonaws.com/1336956_400e82e7ce654378a8f31408c4bff5e8.html)
 
 The script offers code to detect USVs in three possible escenarios:
 
