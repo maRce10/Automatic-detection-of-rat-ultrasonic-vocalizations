@@ -1,38 +1,32 @@
-<!-- Short Description  -->
+Automatic detection of rat ultrasonic vocalizations
+================
+Marcelo Araya-Salas
+2025-08-18
 
-This is a short description of the project
-
-*Updated on 2025-08-14 13:51:05.667326*
-
-<!-- README.md is generated from README.Rmd. Please edit that file -->
-
-## Table of contents
-
--   [General info](#general-info)
-    -   [Analyses](#Analyses)
-        -   [To do list](#to-do-list)
-            -   [Contact](#contact)
-
-## General info
-
-General information about the project (study system, goals, etc)
+This repository contains the example data and code to automatically
+detect rat ultrasonic vocalizations (USV). The examples sound files are
+found at `./data/raw/sound_files`. Automatic detection is conducted with
+the R package [ohun](https://docs.ropensci.org/ohun/). Detection are
+further curated by mitigating false positives with a Random Forest on
+spectrographic features.
 
 ## Analysis
 
--   Analysis 1
+This script details the entire process of analysis, from sound file
+formatting to summarizing results:
 
-## In progress
+<https://rpubs.com/marcelo-araya-salas/detecting_rat_suvs>
 
--   Something not finished yet
+The script offers code to detect USVs in three possible escenarios:
 
-## To-do list
+- Detect 55 kHz USVs in the presence of bedding
+- Detect 55 kHz USVs with no bedding
+- Detect 22 kHz USVs with no bedding
 
--   Do the next analysis
+Associated random forest models are hosted at:
 
-## Status
-
-Project is: *in progress*
+<https://doi.org/10.6084/m9.figshare.29931746.v1>
 
 ## Contact
 
-Created by [Autor name](website_URL)
+Created by [Marcelo Araya-Salas](https://marce10.github.io/)
