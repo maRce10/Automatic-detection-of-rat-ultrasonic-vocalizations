@@ -4,7 +4,7 @@ subtitle: Example code
 author: <a href="https://marce10.github.io/">Marcelo Araya-Salas, PhD</a>
 date: "`r Sys.Date()`"
 toc: true
-toc-depth: 2
+toc-depth: 3
 toc-location: left
 number-sections: true
 highlight-style: pygments
