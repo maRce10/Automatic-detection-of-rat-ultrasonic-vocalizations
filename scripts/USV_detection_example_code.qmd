@@ -48,7 +48,7 @@ if (file.exists("./.git/config")){
 ```{mermaid}
 
 flowchart LR
-  A("Format sound</br>files") --> B("Detect</br>sounds") 
+  A("Format</br>sound files") --> B("Detect</br>sounds") 
   B --> C("Measure</br>acoustic features")
   C --> D("Mitigate</br>false positives")
   D --> E("Summarize</br>USVs counts") 
@@ -67,6 +67,11 @@ style E fill:#DEF5E533
 #| message: false
 #| warning: false
 #| echo: true
+
+# install sketchy if not installed
+if (!requireNamespace("sketchy", quietly = TRUE)) {
+    install.packages("sketchy")
+}
 
 ## add 'developer/' to packages to install from github
 x <- c(
@@ -136,7 +141,7 @@ seg_2_minseg <- function(seg) {
 # where the original sound files are
 sound_file_path <- "./data/raw/sound_files/"
 
-# where you want to have the consolidated sound files and clips
+# where to save the consolidated sound files and clips
 consolidate_path <- "./data/raw/sound_files/"
 
 # where to save the output data

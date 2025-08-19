@@ -1,7 +1,7 @@
 Automatic detection of rat ultrasonic vocalizations
 ================
 Marcelo Araya-Salas
-2025-08-18
+2025-08-19
 
 This repository contains the example data and code to automatically
 detect rat ultrasonic vocalizations (USV). The examples sound files are
@@ -15,7 +15,7 @@ spectrographic features.
 This script details the entire process of analysis, from sound file
 formatting to summarizing results:
 
-[https://rpubs.com/marcelo-araya-salas/detecting_rat_suvs](https://rstudio-pubs-static.s3.amazonaws.com/1336956_400e82e7ce654378a8f31408c4bff5e8.html)
+[https://rpubs.com/marcelo-araya-salas/detecting_rat_suvs](https://rstudio-pubs-static.s3.amazonaws.com/1336956_f10520edb31644c59e7e5f35365e4e19.html)
 
 The script offers code to detect USVs in three possible escenarios:
 
@@ -26,6 +26,9 @@ The script offers code to detect USVs in three possible escenarios:
 Associated random forest models are hosted at:
 
 <https://doi.org/10.6084/m9.figshare.29931746.v1>
+
+The code is also found in a .R script in this repository at
+`./scripts/pooled_script_55kHz_with_bedding.R`.
 
 ## Contact
 
