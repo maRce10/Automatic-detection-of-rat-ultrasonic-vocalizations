@@ -7,7 +7,7 @@ This repository contains the example data and code to automatically
 detect rat ultrasonic vocalizations (USV). The examples sound files are
 found at `./data/raw/sound_files`. Automatic detection is conducted with
 the R package [ohun](https://docs.ropensci.org/ohun/). Detection are
-further curated by mitigating false positives with a Random Forest on
+further curated by mitigating false positives using a pre-trained Random Forest classfication model on
 spectrographic features.
 
 ## Analysis
