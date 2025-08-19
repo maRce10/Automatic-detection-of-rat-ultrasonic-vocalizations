@@ -181,6 +181,7 @@ files <- grep("consolidated", files, value = TRUE, invert = TRUE)
 files
 ```
 
+Sound files can be found at: [https://github.com/maRce10/Automatic-detection-of-rat-ultrasonic-vocalizations/tree/master/data/raw/sound_files](https://github.com/maRce10/Automatic-detection-of-rat-ultrasonic-vocalizations/tree/master/data/raw/sound_files)
 
 ## Consolidate sound files
 
